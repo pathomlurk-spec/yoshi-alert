@@ -129,12 +129,13 @@ def main():
         check_symbol(sym["name"], sym["coingecko_id"], "daily")
         time.sleep(2)
 
+    time.sleep(10)  # หน่วงระหว่าง daily และ weekly
     print("\n" + "=" * 50)
     print("📅 Weekly Signals")
     print("=" * 50)
     for sym in SYMBOLS:
         check_symbol(sym["name"], sym["coingecko_id"], "weekly")
-        time.sleep(2)
+        time.sleep(8)
 
 if __name__ == "__main__":
     main()
