@@ -14,16 +14,15 @@ SYMBOLS = [
 
 # ── Fetch data from CoinGecko ────────────────────────────────
 def get_klines(coingecko_id, interval="daily"):
-    # daily = 300 วัน, weekly = 700 วัน (100 สัปดาห์)
-    days = 700 if interval == "weekly" else 300
+    # ดึงสูงสุด 365 วัน (free tier ของ CoinGecko)
     url = f"https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart"
-    params = {"vs_currency": "usd", "days": days, "interval": "daily"}
+    params = {"vs_currency": "usd", "days": 365, "interval": "daily"}
     res = requests.get(url, params=params, timeout=10)
     res.raise_for_status()
     data = res.json()
     prices = [float(p[1]) for p in data["prices"]]
     if interval == "weekly":
-        # สุ่มเลือกแค่ราคาทุก 7 วัน
+        # sample ทุก 7 วัน = ~52 แท่ง
         prices = prices[::7]
     return prices
 
