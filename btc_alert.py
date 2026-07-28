@@ -14,17 +14,24 @@ SYMBOLS = [
 
 # ── Fetch data from CoinGecko ────────────────────────────────
 def get_klines(coingecko_id, interval="daily"):
-    # ดึงสูงสุด 365 วัน (free tier ของ CoinGecko)
+    import time
     url = f"https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart"
     params = {"vs_currency": "usd", "days": 365, "interval": "daily"}
-    res = requests.get(url, params=params, timeout=10)
-    res.raise_for_status()
-    data = res.json()
-    prices = [float(p[1]) for p in data["prices"]]
-    if interval == "weekly":
-        # sample ทุก 7 วัน = ~52 แท่ง
-        prices = prices[::7]
-    return prices
+    # retry สูงสุด 3 ครั้ง ถ้าเจอ 429
+    for attempt in range(3):
+        res = requests.get(url, params=params, timeout=15)
+        if res.status_code == 429:
+            wait = 30 * (attempt + 1)
+            print(f"⏳ Rate limit — รอ {wait} วินาที แล้วลองใหม่...")
+            time.sleep(wait)
+            continue
+        res.raise_for_status()
+        data = res.json()
+        prices = [float(p[1]) for p in data["prices"]]
+        if interval == "weekly":
+            prices = prices[::7]
+        return prices
+    raise Exception(f"Failed after 3 retries for {coingecko_id}")
 
 # ── Indicators ───────────────────────────────────────────────
 def calc_ema(closes, period):
