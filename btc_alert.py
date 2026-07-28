@@ -8,14 +8,15 @@ SYMBOL = "BTCUSDT"
 INTERVAL = "1d"
 LIMIT = 300
 
-# ── Fetch data from Binance ───────────────────────────────────
+# ── Fetch data from CoinGecko ────────────────────────────────
 def get_klines(symbol, interval, limit):
-    url = f"https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    # CoinGecko: ดึงราคา BTC รายวัน 300 วัน
+    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
+    params = {"vs_currency": "usd", "days": limit, "interval": "daily"}
     res = requests.get(url, params=params, timeout=10)
     res.raise_for_status()
     data = res.json()
-    closes = [float(k[4]) for k in data]
+    closes = [float(p[1]) for p in data["prices"]]
     return closes
 
 # ── Indicators ───────────────────────────────────────────────
