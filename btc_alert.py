@@ -4,20 +4,28 @@ from datetime import datetime
 
 # ── Config ───────────────────────────────────────────────────
 DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1531326785130598401/uHRVHWLLkGsGcFGM21DWYAfVbv1m_M8ajElnJK5187meD6gEhyXOV2AzlbIMOPdfKbmT"
-SYMBOL = "BTCUSDT"
-INTERVAL = "1d"
 LIMIT = 300
 
+SYMBOLS = [
+    {"name": "BTC/USDT", "coingecko_id": "bitcoin"},
+    {"name": "ETH/USDT", "coingecko_id": "ethereum"},
+    {"name": "SOL/USDT", "coingecko_id": "solana"},
+]
+
 # ── Fetch data from CoinGecko ────────────────────────────────
-def get_klines(symbol, interval, limit):
-    # CoinGecko: ดึงราคา BTC รายวัน 300 วัน
-    url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart"
-    params = {"vs_currency": "usd", "days": limit, "interval": "daily"}
+def get_klines(coingecko_id, interval="daily"):
+    # daily = 300 วัน, weekly = 700 วัน (100 สัปดาห์)
+    days = 700 if interval == "weekly" else 300
+    url = f"https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart"
+    params = {"vs_currency": "usd", "days": days, "interval": "daily"}
     res = requests.get(url, params=params, timeout=10)
     res.raise_for_status()
     data = res.json()
-    closes = [float(p[1]) for p in data["prices"]]
-    return closes
+    prices = [float(p[1]) for p in data["prices"]]
+    if interval == "weekly":
+        # สุ่มเลือกแค่ราคาทุก 7 วัน
+        prices = prices[::7]
+    return prices
 
 # ── Indicators ───────────────────────────────────────────────
 def calc_ema(closes, period):
@@ -72,52 +80,62 @@ def send_discord(message, color):
         print(f"❌ Discord error: {res.status_code} {res.text}")
 
 # ── Main ──────────────────────────────────────────────────────
-def main():
-    print(f"🔍 ตรวจสัญญาณ {SYMBOL} [{INTERVAL}] — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-
-    closes = get_klines(SYMBOL, INTERVAL, LIMIT)
+def check_symbol(name, coingecko_id, interval="daily"):
+    tf_label = "1W" if interval == "weekly" else "1D"
+    print(f"\n🔍 ตรวจสัญญาณ {name} [{tf_label}] — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    closes = get_klines(coingecko_id, interval)
     ema7  = calc_ema(closes, 7)
     ema30 = calc_ema(closes, 30)
     rsi   = calc_rsi(closes, 14)
 
-    # ตรวจ 2 แท่งล่าสุด
     i = len(closes) - 1
     price = closes[i]
-
     cross_up   = ema7[i-1] <= ema30[i-1] and ema7[i] > ema30[i]
     cross_down = ema7[i-1] >= ema30[i-1] and ema7[i] < ema30[i]
     rsi_now = rsi[i]
 
-    print(f"💰 ราคา: ${price:,.2f}")
-    print(f"📊 EMA7: {ema7[i]:,.2f} | EMA30: {ema30[i]:,.2f}")
-    print(f"📈 RSI: {rsi_now:.2f}")
+    print(f"💰 ราคา: ${price:,.2f} | EMA7: {ema7[i]:,.2f} | EMA30: {ema30[i]:,.2f} | RSI: {rsi_now:.2f}")
 
     if cross_up and rsi_now and rsi_now < 65:
         msg = (
-            f"🟢 **BUY Signal — {SYMBOL}**\n\n"
+            f"🟢 **BUY Signal — {name}**\n\n"
             f"💰 ราคา: **${price:,.2f}**\n"
             f"📊 EMA7: {ema7[i]:,.2f} | EMA30: {ema30[i]:,.2f}\n"
             f"📈 RSI: {rsi_now:.2f}\n"
             f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-            f"⚡ EMA7 ตัด EMA30 ขึ้น + RSI ยืนยัน"
+            f"📅 Timeframe: {tf_label}\n⚡ EMA7 ตัด EMA30 ขึ้น + RSI ยืนยัน"
         )
-        print("🟢 BUY Signal!")
+        print(f"🟢 BUY Signal!")
         send_discord(msg, 3066993)
-
     elif cross_down and rsi_now and rsi_now > 35:
         msg = (
-            f"🔴 **SELL Signal — {SYMBOL}**\n\n"
+            f"🔴 **SELL Signal — {name}**\n\n"
             f"💰 ราคา: **${price:,.2f}**\n"
             f"📊 EMA7: {ema7[i]:,.2f} | EMA30: {ema30[i]:,.2f}\n"
             f"📈 RSI: {rsi_now:.2f}\n"
             f"🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-            f"⚡ EMA7 ตัด EMA30 ลง + RSI ยืนยัน"
+            f"📅 Timeframe: {tf_label}\n⚡ EMA7 ตัด EMA30 ลง + RSI ยืนยัน"
         )
-        print("🔴 SELL Signal!")
+        print(f"🔴 SELL Signal!")
         send_discord(msg, 15158332)
-
     else:
-        print("⏳ ไม่มีสัญญาณวันนี้")
+        print(f"⏳ ไม่มีสัญญาณวันนี้")
+
+def main():
+    import time
+    print("=" * 50)
+    print("📅 Daily Signals")
+    print("=" * 50)
+    for sym in SYMBOLS:
+        check_symbol(sym["name"], sym["coingecko_id"], "daily")
+        time.sleep(2)
+
+    print("\n" + "=" * 50)
+    print("📅 Weekly Signals")
+    print("=" * 50)
+    for sym in SYMBOLS:
+        check_symbol(sym["name"], sym["coingecko_id"], "weekly")
+        time.sleep(2)
 
 if __name__ == "__main__":
     main()
